@@ -21,11 +21,10 @@ jobs:
         with:
           node-version: '22'
 
-      # 刻意**不跑 npm install**：本插件零运行时依赖，测试只用 node 内置的
-      # node:test。CI 里最大的一类风险就是"安装依赖时执行了陌生脚本"，
-      # 不装任何东西就根本没有这个面。这也顺带证明：这个包是真的零依赖。
-      - name: 确认真的零依赖
-        run: node -e "const p=require('./package.json');const d=Object.keys(p.dependencies||{});if(d.length){console.error('竟然有依赖: '+d.join(', '));process.exit(1)};console.log('零依赖 ✓')"
-
-      - name: 跑测试
+      # 刻意不跑 npm install：本插件零运行时依赖，测试只用 node 内置的 node:test。
+      # CI 里最大的一类风险就是安装依赖时执行陌生脚本，不装东西就没有这个面。
+      # 「确实零依赖」由测试断言（test/package-meta.test.js），不在这里写内联脚本。
+      # 2026-09-20 踩过坑：内联脚本里的「冒号+空格」会让整份 YAML 解析失败，
+      # 表现是 workflow 直接起不来（jobs 数为 0），而不是某一步报错 —— 很难查。
+      - name: run tests
         run: node --test
