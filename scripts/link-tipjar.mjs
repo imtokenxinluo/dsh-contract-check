@@ -17,7 +17,7 @@
 //   node scripts/link-tipjar.mjs --apply --repo https://github.com/you/dsh-contract-check
 
 import { readFileSync, writeFileSync, copyFileSync, existsSync } from 'node:fs'
-import { linkPlugin, PLUGIN_ID } from '../src/tipjar-link.js'
+import { linkPlugin, PLUGIN_ID } from './tipjar-link.js'
 
 const REGISTRY = process.env.SPONSORS_JSON || 'D:/tool/dsh_data/sponsors.json'
 

@@ -1,4 +1,6 @@
-// client.js — 会话头部的一个小按钮：颜色圆点 + 「体检」。
+// client.js — 两个界面元素，都刻意做到最小：
+//   1. 会话头部：一个颜色圆点 + 「体检」按钮（主界面，见下）
+//   2. 设置页：一栏「无耗检查」—— 里面是打赏条（自愿支持作者，不打扰日常）
 //
 // 设计约束（用户定，2026-09-19）：
 //   - **不要 Tab**：多一个页签就是多一份负担，体检不该要求用户主动去翻
@@ -12,6 +14,7 @@
 // token 中立：这是浏览器侧代码，不进模型上下文。
 
 import { createElement, useState, useEffect, useCallback } from 'react'
+import { TipJarEmbed } from 'dsh-tip-jar/embed'
 
 const STATUS_URL = '/contract-check/status'
 const AUDIT_URL = '/contract-check/audit'
@@ -44,6 +47,11 @@ const CSS = `
   border:2px solid rgba(128,128,128,.28);
   border-top-color:var(--dsw-alias-state-success-primary,#22a06b);
   animation:cc-spin .5s linear infinite}
+
+/* 设置页那一栏 */
+.cc-settings{padding:4px 0}
+.cc-set-title{font-size:14px;font-weight:600}
+.cc-set-sub{font-size:12.5px;color:var(--dsw-alias-label-tertiary);margin-top:4px;margin-bottom:10px}
 `
 
 /** 体检本身可能几十毫秒就跑完，那样动画只会"闪一下"，比不动还难看。
@@ -121,8 +129,43 @@ function HeaderBadge() {
     createElement('span', { className: 'cc-hlabel' }, busy ? '体检中…' : '体检'))
 }
 
+/**
+ * 设置页那一栏：自愿打赏。
+ *
+ * 为什么先判 Remote 再渲染：`TipJarEmbed` 拿不到 Remote 时会**永远停在"加载中…"**
+ * （它的 loading 分支靠数据到达来翻页）。社区里别人装了这个插件但没装打赏罐，
+ * 就会看到一个永不消失的"加载中"——比不显示更糟。
+ *
+ * ⚠️ 实机踩坑（2026-09-19）：`ctx.remote` 是**注入式服务**——
+ * 客户端 inject 列表里没有 `remote` 时，访问它会抛异常而不是给 undefined。
+ * 所以既要声明 `inject` 里有 `remote`，这里也要包一层 try/catch 兜底：
+ * 打赏组件出任何问题，都不许影响体检本身。
+ */
+function TipSupport(props) {
+  let ns = null
+  try {
+    const remote = props.ctx && props.ctx.remote
+    ns = remote && remote.namespaces && typeof remote.namespaces.get === 'function'
+      ? remote.namespaces.get('tipJar')
+      : null
+  } catch {
+    ns = null // 没注入 / 打赏罐没装 —— 静默降级：不打赏，也不报错
+  }
+  if (!ns) return null
+  return createElement(TipJarEmbed, { ctx: props.ctx, pluginId: 'dsh-contract-check' })
+}
+
+/** 设置页里的一栏。体检本身不在这儿 —— 只有"支持作者"，不打扰日常。 */
+function SettingsSection(props) {
+  return createElement('div', { className: 'cc-settings' },
+    createElement('div', { className: 'cc-set-title' }, '无耗检查'),
+    createElement('div', { className: 'cc-set-sub' },
+      '契约检查插件：不花 token、不拦执行、只告警。状态见会话头部那个圆点。'),
+    createElement(TipSupport, { ctx: props.ctx }))
+}
+
 export default {
-  inject: ['slots'],
+  inject: ['remote', 'slots'],
   apply(ctx) {
     const slots = ctx.slots
     if (!slots) return
@@ -132,6 +175,12 @@ export default {
       return slots.register(
         { name: 'conversation.session.header.utilities', id: 'contract-check-header', order: 35 },
         function () { return createElement(HeaderBadge) })
+    })
+
+    slots.inject('settings.section', function () {
+      return slots.register(
+        { name: 'settings.section', id: 'contract-check-settings', order: 40, label: '无耗检查' },
+        function () { return createElement(SettingsSection, { ctx: ctx }) })
     })
   }
 }

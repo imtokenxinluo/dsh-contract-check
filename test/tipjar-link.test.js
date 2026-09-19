@@ -13,7 +13,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { linkPlugin, PLUGIN_ID, PLUGIN_NAME } from "../src/tipjar-link.js";
+import { linkPlugin, PLUGIN_ID, PLUGIN_NAME } from "../scripts/tipjar-link.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), "utf8");
@@ -196,4 +196,22 @@ test("界面: 唯一会写状态的动作就是这个按钮（客户端不发别
   const client = read("src/client.js");
   const written = [...client.matchAll(/fetch\(\s*([A-Z_]+)[^)]*method:\s*'(\w+)'/g)].map((m) => `${m[1]}:${m[2]}`);
   assert.deepEqual(written, ["AUDIT_URL:POST"], `客户端只该有这一个写请求，实际: ${written.join(", ") || "无"}`);
+});
+
+test("界面: 打赏条放设置页，不放日常视野（不打扰日常使用）", () => {
+  const client = read("src/client.js");
+  assert.match(client, /slots\.inject\(\s*'settings\.section'/, "要注册设置页栏目");
+  assert.match(client, /id: 'contract-check-settings'/, "栏目 id");
+  assert.match(client, /label: '无耗检查'/, "设置页里显示的名字");
+  assert.match(client, /createElement\(TipSupport/, "打赏组件挂在设置页栏目里");
+});
+
+test("界面: 头部那个按钮里不含打赏（头部只放体检）", () => {
+  const client = read("src/client.js");
+  const at = client.indexOf("function HeaderBadge");
+  assert.ok(at > 0, "找不到 HeaderBadge");
+  // 只取到本函数结束（\n}），不把后面的注释/其它函数带进来
+  const end = client.indexOf("\n}", at);
+  const badge = client.slice(at, end + 2);
+  assert.ok(!/TipJarEmbed|TipSupport/.test(badge), "头部按钮里不该混进打赏组件");
 });
