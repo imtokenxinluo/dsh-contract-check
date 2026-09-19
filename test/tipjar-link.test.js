@@ -169,6 +169,29 @@ test("界面: 体检进行中要有明确的文字反馈，不能'点了没反�
   assert.match(client, /busy \? '体检中…'/, "进行中要显示「体检中…」");
 });
 
+test("界面: 忙碌态有最短展示时长（体检几十毫秒跑完也不会'闪一下'）", () => {
+  const client = read("src/client.js");
+  const m = client.match(/MIN_BUSY_MS\s*=\s*(\d+)/);
+  assert.ok(m, "要定义最短忙碌时长");
+  const ms = Number(m[1]);
+  assert.ok(ms >= 300 && ms <= 1200, `最短时长应在 300~1200ms 之间（现在是 ${ms}ms）`);
+  assert.match(client, /Date\.now\(\)\s*-\s*started/, "要真的按实际耗时补足");
+  assert.match(client, /setTimeout\(r,\s*MIN_BUSY_MS\s*-\s*elapsed\)/, "补足逻辑要落到 setTimeout");
+});
+
+test("界面: 忙碌态有转圈动画，且不是实心圆自转（那样看不出在动）", () => {
+  const client = read("src/client.js");
+  assert.match(client, /@keyframes\s+cc-spin/, "要有转圈动画");
+  assert.match(client, /\.cc-spin\{[\s\S]*?border-top-color/, "要用圆环 + 高亮缺口");
+  assert.match(client, /busy \? 'cc-hdot cc-spin'/, "忙碌时要换成转圈样式");
+});
+
+test("界面: 按钮宽度不随文字变化（否则忽宽忽窄像在抖）", () => {
+  const client = read("src/client.js");
+  assert.match(client, /\.cc-hlabel\{[\s\S]*?min-width/, "文字槽要定宽");
+  assert.match(client, /className: 'cc-hlabel'/, "文字要用定宽槽包起来");
+});
+
 test("界面: 唯一会写状态的动作就是这个按钮（客户端不发别的写请求）", () => {
   const client = read("src/client.js");
   const written = [...client.matchAll(/fetch\(\s*([A-Z_]+)[^)]*method:\s*'(\w+)'/g)].map((m) => `${m[1]}:${m[2]}`);

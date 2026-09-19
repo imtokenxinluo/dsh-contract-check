@@ -31,9 +31,24 @@ const CSS = `
 .cc-hbtn:hover{background:rgba(128,128,128,.10);border-color:rgba(128,128,128,.45)}
 .cc-hbtn:active{background:rgba(128,128,128,.18);transform:scale(.96)}
 .cc-hbtn:focus-visible{outline:2px solid var(--dsw-alias-state-success-primary,#22a06b);outline-offset:2px}
-.cc-hbtn[disabled]{opacity:.6;cursor:default;transform:none}
+.cc-hbtn[disabled]{opacity:.7;cursor:default;transform:none}
+
+/* 定宽文字槽：「体检」和「体检中…」占同样宽度 —— 否则按钮忽宽忽窄，看着就是抖 */
+.cc-hlabel{min-width:46px;text-align:center;display:inline-block}
+
 .cc-hdot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 0 2px rgba(128,128,128,.12)}
+
+/* 体检中：圆点变成转圈（实心圆自己转看不出来，所以换成圆环+高亮缺口） */
+@keyframes cc-spin{to{transform:rotate(360deg)}}
+.cc-spin{background:transparent !important;box-sizing:border-box;box-shadow:none;
+  border:2px solid rgba(128,128,128,.28);
+  border-top-color:var(--dsw-alias-state-success-primary,#22a06b);
+  animation:cc-spin .5s linear infinite}
 `
+
+/** 体检本身可能几十毫秒就跑完，那样动画只会"闪一下"，比不动还难看。
+ *  所以给忙碌态设最短展示时长：跑得再快，也让这半秒的动画转完。 */
+const MIN_BUSY_MS = 500
 
 function insertStyles(css) {
   const id = 'dsh-contract-check-styles'
@@ -60,13 +75,16 @@ function useStatus() {
 
   const runAudit = useCallback(async () => {
     setBusy(true)
+    const started = Date.now()
     try {
       const res = await fetch(AUDIT_URL, { method: 'POST' })
-      const body = await res.json()
-      setState(body)
+      setState(await res.json())
     } catch {
-      /* 失败也不弹错：圆点会退回上一次的颜色，用户点第二次即可 */
+      /* 失败不弹错：圆点退回上一次的颜色，再点一次即可 */
     } finally {
+      // 体检可能几十毫秒就完事 —— 补足到最短展示时长，让动画完整转完这半秒
+      const elapsed = Date.now() - started
+      if (elapsed < MIN_BUSY_MS) await new Promise((r) => setTimeout(r, MIN_BUSY_MS - elapsed))
       setBusy(false)
     }
   }, [])
@@ -82,7 +100,8 @@ function levelOf(state) {
 
 /**
  * 状态圆点 + 「体检」按钮。
- * 颜色 = 结论，悬停 = 细节，点击 = 立刻重跑一次体检（进行中显示"体检中…"并禁用，防止连点）。
+ * 颜色 = 结论，悬停 = 细节，点击 = 立刻重跑一次体检
+ * （进行中：圆点转圈 + 文字换「体检中…」，且补足半秒最短时长，避免"闪一下"）。
  */
 function HeaderBadge() {
   const { state, busy, runAudit } = useStatus()
@@ -94,8 +113,12 @@ function HeaderBadge() {
     onClick: runAudit,
     title: (state && state.detail) || '无耗检查：尚未体检'
   },
-    createElement('span', { className: 'cc-hdot', style: { background: COLORS[level] } }),
-    createElement('span', null, busy ? '体检中…' : '体检'))
+    createElement('span', {
+      className: busy ? 'cc-hdot cc-spin' : 'cc-hdot',
+      // 忙碌时不设内联底色：否则会盖掉 .cc-spin 的透明底（内联样式优先级更高）
+      style: busy ? undefined : { background: COLORS[level] }
+    }),
+    createElement('span', { className: 'cc-hlabel' }, busy ? '体检中…' : '体检'))
 }
 
 export default {
