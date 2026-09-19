@@ -256,11 +256,14 @@ while `src` is not in `files`, so that import fails after install.
 6. **Out of scope**: packaging allowlists (a property of the package on disk — use
    `npm pack --dry-run`; the registry cannot see it), and runtime behaviors such as
    killing the host process
-7. **Live status (2026-09-19)**: mounted and running in a real DSH — the header button shows
+7. **Live status (2026-09-20)**: mounted and running in a real DSH. Steady-state reading:
    `无耗 · 检查 21 个插件 · 违规 0 · 不可判定 1`. Two things stated plainly:
-   - **The yellow path has not been exercised end-to-end on a live install yet.**
-     Only green has been observed live; the yellow logic is unit-tested, but
-     "install a broken plugin → indicator turns yellow → it names the plugin" has not been run.
+   - **The yellow path has now been verified live** (2026-09-20): with a deliberately
+     contract-violating test fixture installed, the status became
+     `无耗 · 检查 23 个插件 · 违规 2 · 不可判定 1` and **named the offending tool correctly**.
+     The fixture was removed right after. It also demonstrated the value of the probe:
+     a `render` that **static analysis could not decide** was caught as a real violation
+     by actually running it.
    - The first check's log line has not been verified (DSH prints to the console that launched it),
      and whether `tools/change` reaches this plugin is unverified — so it additionally
      **re-checks once on first session traffic** as a fallback
