@@ -114,12 +114,24 @@ function Num(props) {
  * （它的 loading 分支是靠数据到达来翻页的）。社区里别人装了这个插件但没装打赏罐，
  * 就会看到一个永不消失的"加载中"——那比不显示更糟。所以这里先看命名空间在不在。
  * 打赏是自愿的、可选的：没装就静默不显示，不影响体检功能。
+ *
+ * ⚠️ 实机踩坑（2026-09-19）：`ctx.remote` 是**注入式服务**——
+ * 客户端 inject 列表里没有 `remote` 时，访问 `ctx.remote` 会抛异常而不是给 undefined
+ * （同款坑：宿主侧 `ctx.tools`/`ctx.webServer` 也是这样）。
+ * 结果就是整个体检面板炸掉、或者什么都不显示，看起来"像是没嵌进去"。
+ * 所以两件事都要做：声明 `inject: ['remote', 'slots']`，以及这里包一层 try/catch 兜底
+ * ——打赏组件出任何问题，都不许影响体检面板本身。
  */
 function TipSupport(props) {
-  const remote = props.ctx && props.ctx.remote
-  const ns = remote && remote.namespaces && remote.namespaces.get
-    ? remote.namespaces.get('tipJar')
-    : null
+  let ns = null
+  try {
+    const remote = props.ctx && props.ctx.remote
+    ns = remote && remote.namespaces && typeof remote.namespaces.get === 'function'
+      ? remote.namespaces.get('tipJar')
+      : null
+  } catch {
+    ns = null // 没注入 / 打赏罐没装 —— 静默降级：不打赏，也不报错
+  }
   if (!ns) return null
   return createElement(TipJarEmbed, { ctx: props.ctx, pluginId: 'dsh-contract-check' })
 }
@@ -188,7 +200,7 @@ function HeaderBadge() {
 }
 
 export default {
-  inject: ['slots'],
+  inject: ['remote', 'slots'],
   apply(ctx) {
     const slots = ctx.slots
     if (!slots) return

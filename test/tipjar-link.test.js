@@ -81,6 +81,33 @@ test("打赏罐: client 里的 pluginId 与登记用的 pluginId 一致", () => 
   assert.equal(m[1], PLUGIN_ID, "两处 pluginId 不一致 → 界面上会显示'未在赞助注册表登记'");
 });
 
+// --- 注入声明：少一个 remote，打赏条就永远不显示（2026-09-19 实机踩到）---
+
+test("打赏罐: 客户端声明注入 remote（少了它 ctx.remote 会抛异常，打赏条永不出现）", () => {
+  const client = readFileSync(new URL("../src/client.js", import.meta.url), "utf8");
+  const m = client.match(/inject:\s*\[([^\]]*)\]/);
+  assert.ok(m, "client.js 里应该有 inject 列表");
+  const list = m[1].split(",").map((s) => s.trim().replace(/['"]/g, "")).filter(Boolean);
+  assert.ok(list.includes("remote"), `inject 里必须有 'remote'，现在只有 [${list.join(", ")}]`);
+  assert.ok(list.includes("slots"), "inject 里必须有 'slots'");
+});
+
+test("打赏罐: package.json 的 dsh.client.inject 声明了 dsh-api-remotes（remote 服务由它提供）", () => {
+  const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+  const list = (pkg.dsh && pkg.dsh.client && pkg.dsh.client.inject) || [];
+  assert.ok(
+    list.includes("@deepseek-ai/dsh-api-remotes"),
+    "缺 @deepseek-ai/dsh-api-remotes → 客户端拿不到 remote 服务"
+  );
+});
+
+test("打赏罐: 打赏组件出问题不许拖垮体检面板（访问 ctx.remote 必须 try/catch）", () => {
+  const client = readFileSync(new URL("../src/client.js", import.meta.url), "utf8");
+  const at = client.indexOf("function TipSupport");
+  assert.ok(at > 0, "找不到 TipSupport");
+  assert.match(client.slice(at, at + 900), /try\s*{/, "TipSupport 要用 try/catch 兜住注入异常");
+});
+
 test("打赏罐: client 里用构建时打包的 esbuild 别名路径（不是运行时跨包 import）", () => {
   const client = readFileSync(new URL("../src/client.js", import.meta.url), "utf8");
   assert.match(client, /from 'dsh-tip-jar\/embed'/);
