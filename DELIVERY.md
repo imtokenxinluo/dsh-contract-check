@@ -96,9 +96,15 @@ $ npm pack --dry-run
 
 ## Spec 摘要
 
-DSH 界面里出现与「荐股」同级的 **「体检」Tab** + 会话头部小徽章：
-🟢 绿 = 0 违规 / 🟡 黄 = 有违规 / ⚪ 灰 = 尚未体检；点按钮手动体检。
+DSH 会话头部出现一个**小按钮**：颜色圆点 + 「体检」二字，悬停显示完整状态条，
+点击立刻重跑一次体检（0.5 秒转圈动画）：
+🟢 绿 = 0 违规 / 🟡 黄 = 有违规 / ⚪ 灰 = 尚未体检或判不准。
+**界面上只有这一个元素** —— 不做 Tab、不做面板，体检不该要求用户主动去翻。
 **token 中立不变**（GUI 不进模型上下文）。不做拦截、不做恶意检测。
+
+> 2026-09-19 修订：初版做过「体检」Tab + 面板 + 「重新体检」按钮，
+> 用户反馈"页签增加负担、点击体验不好"后删掉 Tab 与面板，
+> 按钮保留并把点击反馈做足（最短 0.5s、转圈动画、定宽防抖动）。
 
 ## 红绿时间线
 
@@ -115,8 +121,9 @@ DSH 界面里出现与「荐股」同级的 **「体检」Tab** + 会话头部�
 
 - **路由**：`ctx.webServer.register({ kind: "exact", path, handler })`，handler 是 `(req, res)`（node:http）
 - **客户端**：`window.__ModuleLoader__.load({ id, factory: (require) => … })` 包装；
-  `slots.inject('conversation.view', () => slots.register({ name, id, order, label }, render))`
-- **React 由宿主提供**：构建时 `external: ['react']` → 产物仅 **9.9 KB**
+  `slots.inject('conversation.session.header.utilities', () => slots.register({ name, id, order }, render))`
+  （**不再**注册 `conversation.view` —— 那个 Tab 已按用户要求删除）
+- **React 由宿主提供**：构建时 `external: ['react']` → 产物仅 **5.6 KB**
   （对照：stock-picks 795 KB / tip-jar 770 KB —— 它们把 React 打进去了）
 - **不引入 typert/remote RPC**：客户端同源 `fetch` 自家路由即可
 - **`files` 加上 `lib`**：否则 npm 包会漏发客户端产物（本工具自己检查的那类错误）
@@ -124,7 +131,7 @@ DSH 界面里出现与「荐股」同级的 **「体检」Tab** + 会话头部�
 ## 新增/变更文件
 
 - `src/status.js`（状态判定 + 存储 + 体检互斥）· `src/http.js`（两条路由 handler）
-- `src/client.js`（GUI Tab + 头部徽章）· `lib/client.js`（**构建产物，9.9 KB**）
+- `src/client.js`（头部体检按钮）· `lib/client.js`（**构建产物，5.6 KB**）
 - `scripts/build-client.mjs`（用本机已有 esbuild，不联网）
 - `test/status.test.js` · `test/http.test.js` · `test/client-bundle.test.js`
 - `src/plugin.js`（接线：状态存储 + 路由注册，webServer 为**软依赖**）
