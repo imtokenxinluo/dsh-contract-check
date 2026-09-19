@@ -1,8 +1,14 @@
 // 打赏罐绑定的测试。
 //
-// 这一环最容易出的错不是崩溃，而是**静默不显示**：
-// pluginId 写错、贡献者没登记、注册表结构不符 —— 界面上都只是少了一条打赏。
-// 所以这里盯的是"链条完整"，而不是"函数不抛异常"。
+// 现状（2026-09-19 用户定）：**界面上的打赏条已摘掉**——体检插件不做 Tab、不做按钮，
+// 只留一个状态圆点，所以嵌入组件暂时没有挂载点。
+// 但"绑定"这件事本身保留：注册表登记、构建别名、打桩降级都还在，随时可以重新挂上。
+//
+// 因此下面分两类：
+//   1. 无条件必须成立的：注册表链条完整（登记 → 贡献者 → 收款地址）
+//   2. 条件成立的：**一旦 client 里确实挂了嵌入组件**，那套约束（pluginId 一致、
+//      inject 声明齐全、产物里真的打进去了）就必须全部满足
+//      —— 用条件式是为了：现在不挂不误报，将来重新挂上时立刻有人盯着。
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
@@ -10,12 +16,15 @@ import { fileURLToPath } from "node:url";
 import { linkPlugin, PLUGIN_ID, PLUGIN_NAME } from "../src/tipjar-link.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
+const read = (rel) => readFileSync(new URL(`../${rel}`, import.meta.url), "utf8");
 
 const base = () => ({
   schemaVersion: 1,
   contributors: [{ id: "alice", alias: "alice", tips: { usdc: "0xabc" } }],
   plugins: [{ pluginId: "other-plugin", name: "别的插件", contributorId: "alice", sponsors: [] }]
 });
+
+// ── 1. 注册表链条（无条件） ────────────────────────────────────────────
 
 test("打赏罐: 新增一条登记，指向已有贡献者", () => {
   const r = linkPlugin(base());
@@ -72,55 +81,6 @@ test("打赏罐: --repo 才写 upstream，不传就不写空壳字段", () => {
   assert.deepEqual(withRepo.entry.upstream, { repo: "https://github.com/x/y", author: "alice" });
 });
 
-// --- 与 client 半的一致性：两处 pluginId 必须相同，否则组件查不到登记 ---
-
-test("打赏罐: client 里的 pluginId 与登记用的 pluginId 一致", () => {
-  const client = readFileSync(new URL("../src/client.js", import.meta.url), "utf8");
-  const m = client.match(/pluginId:\s*'([^']+)'/);
-  assert.ok(m, "client.js 里应该有 pluginId");
-  assert.equal(m[1], PLUGIN_ID, "两处 pluginId 不一致 → 界面上会显示'未在赞助注册表登记'");
-});
-
-// --- 注入声明：少一个 remote，打赏条就永远不显示（2026-09-19 实机踩到）---
-
-test("打赏罐: 客户端声明注入 remote（少了它 ctx.remote 会抛异常，打赏条永不出现）", () => {
-  const client = readFileSync(new URL("../src/client.js", import.meta.url), "utf8");
-  const m = client.match(/inject:\s*\[([^\]]*)\]/);
-  assert.ok(m, "client.js 里应该有 inject 列表");
-  const list = m[1].split(",").map((s) => s.trim().replace(/['"]/g, "")).filter(Boolean);
-  assert.ok(list.includes("remote"), `inject 里必须有 'remote'，现在只有 [${list.join(", ")}]`);
-  assert.ok(list.includes("slots"), "inject 里必须有 'slots'");
-});
-
-test("打赏罐: package.json 的 dsh.client.inject 声明了 dsh-api-remotes（remote 服务由它提供）", () => {
-  const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
-  const list = (pkg.dsh && pkg.dsh.client && pkg.dsh.client.inject) || [];
-  assert.ok(
-    list.includes("@deepseek-ai/dsh-api-remotes"),
-    "缺 @deepseek-ai/dsh-api-remotes → 客户端拿不到 remote 服务"
-  );
-});
-
-test("打赏罐: 打赏组件出问题不许拖垮体检面板（访问 ctx.remote 必须 try/catch）", () => {
-  const client = readFileSync(new URL("../src/client.js", import.meta.url), "utf8");
-  const at = client.indexOf("function TipSupport");
-  assert.ok(at > 0, "找不到 TipSupport");
-  assert.match(client.slice(at, at + 900), /try\s*{/, "TipSupport 要用 try/catch 兜住注入异常");
-});
-
-test("打赏罐: client 里用构建时打包的 esbuild 别名路径（不是运行时跨包 import）", () => {
-  const client = readFileSync(new URL("../src/client.js", import.meta.url), "utf8");
-  assert.match(client, /from 'dsh-tip-jar\/embed'/);
-  const build = readFileSync(new URL("../scripts/build-client.mjs", import.meta.url), "utf8");
-  assert.match(build, /dsh-tip-jar\/embed/, "构建脚本必须把 embed 打进产物");
-});
-
-test("打赏罐: 打赏罐没装时构建仍能成功（可选依赖不得让插件构建失败）", () => {
-  const build = readFileSync(new URL("../scripts/build-client.mjs", import.meta.url), "utf8");
-  assert.match(build, /HAVE_TIP_JAR/, "构建脚本要有'没装就打桩'的分支");
-  assert.match(build, /TipJarEmbed\(\) \{ return null \}|TipJarEmbed.*return null/);
-});
-
 test("打赏罐: 本机注册表里这条登记能被打赏罐自己解析出来（装了才查）", (t) => {
   const reg = "D:/tool/dsh_data/sponsors.json";
   const embed = "D:/tool/claude_code/dsh-tip-jar/lib/embed.js";
@@ -136,13 +96,73 @@ test("打赏罐: 本机注册表里这条登记能被打赏罐自己解析出来
   assert.ok(contributor.tips && contributor.tips.usdc, "贡献者要有收款地址，否则组件没有可打赏目标");
 });
 
-test("打赏罐: 产物里确实打进了组件（不是只剩一个空函数）", (t) => {
+// ── 2. 挂载约束（条件式：client 里挂了嵌入组件时才生效） ──────────────────
+
+const MOUNTS_EMBED = /from 'dsh-tip-jar\/embed'/.test(read("src/client.js"));
+
+test("打赏罐: 若 client 挂了嵌入组件，pluginId 必须与登记用的一致", (t) => {
+  if (!MOUNTS_EMBED) return t.skip("当前界面未挂打赏条（设计如此）");
+  const client = read("src/client.js");
+  const m = client.match(/pluginId:\s*'([^']+)'/);
+  assert.ok(m, "挂了组件就必须传 pluginId");
+  assert.equal(m[1], PLUGIN_ID, "两处 pluginId 不一致 → 界面会显示'未在赞助注册表登记'");
+});
+
+test("打赏罐: 若 client 挂了嵌入组件，inject 必须声明 remote（少它组件永不显示）", (t) => {
+  if (!MOUNTS_EMBED) return t.skip("当前界面未挂打赏条（设计如此）");
+  const client = read("src/client.js");
+  const m = client.match(/inject:\s*\[([^\]]*)\]/);
+  assert.ok(m, "client.js 里应该有 inject 列表");
+  const list = m[1].split(",").map((s) => s.trim().replace(/['"]/g, "")).filter(Boolean);
+  assert.ok(list.includes("remote"), `inject 里必须有 'remote'，现在只有 [${list.join(", ")}]`);
+});
+
+test("打赏罐: 若 client 挂了嵌入组件，package.json 必须声明 dsh-api-remotes", (t) => {
+  if (!MOUNTS_EMBED) return t.skip("当前界面未挂打赏条（设计如此）");
+  const pkg = JSON.parse(read("package.json"));
+  const list = (pkg.dsh && pkg.dsh.client && pkg.dsh.client.inject) || [];
+  assert.ok(
+    list.includes("@deepseek-ai/dsh-api-remotes"),
+    "缺 @deepseek-ai/dsh-api-remotes → 客户端拿不到 remote 服务"
+  );
+});
+
+test("打赏罐: 若 client 挂了嵌入组件，产物里必须真的打进组件", (t) => {
+  if (!MOUNTS_EMBED) return t.skip("当前界面未挂打赏条（设计如此）");
   const bundle = `${ROOT}/lib/client.js`;
-  if (!existsSync(bundle)) {
-    t.skip("还没构建产物");
-    return;
-  }
-  const text = readFileSync(bundle, "utf8");
-  assert.match(text, /sps-toolcard/, "打赏组件没被打进产物");
-  assert.match(text, /dsh-contract-check/, "产物里应该有本插件的 pluginId");
+  if (!existsSync(bundle)) return t.skip("还没构建产物");
+  assert.match(readFileSync(bundle, "utf8"), /sps-toolcard/, "打赏组件没被打进产物");
+});
+
+test("打赏罐: 构建脚本始终支持挂载（alias + 未安装时打桩），不管现在挂没挂", () => {
+  const build = read("scripts/build-client.mjs");
+  assert.match(build, /dsh-tip-jar\/embed/, "构建脚本要认识这个 import");
+  assert.match(build, /HAVE_TIP_JAR/, "要能判断打赏罐装没装");
+  assert.match(build, /TipJarEmbed.*return null/, "没装时要能打桩，不能让构建失败");
+});
+
+// ── 3. 界面最小化约束（用户定：不要 Tab、不要按钮） ────────────────────────
+
+test("界面: 不注册 Tab（体检不该要求用户主动去看）", () => {
+  const client = read("src/client.js");
+  assert.doesNotMatch(client, /slots\.inject\(\s*'conversation\.view'/, "不该再有「体检」页签");
+});
+
+test("界面: 不注册任何按钮（体检不该要求用户主动去点）", () => {
+  const client = read("src/client.js");
+  assert.doesNotMatch(client, /createElement\(\s*'button'/, "界面上不该有按钮");
+  assert.doesNotMatch(client, /runAudit|AUDIT_URL/, "不该有手动触发体检的入口");
+});
+
+test("界面: 唯一界面元素是状态圆点，且带颜色 + 悬停说明", () => {
+  const client = read("src/client.js");
+  assert.match(client, /function StatusDot/, "应该有状态圆点组件");
+  assert.match(client, /COLORS\[level\]/, "圆点要按健康度着色");
+  assert.match(client, /title:\s*\(state && state\.detail\)/, "悬停要显示完整状态条");
+});
+
+test("界面: 客户端只读状态，不发任何写请求", () => {
+  const client = read("src/client.js");
+  const written = [...client.matchAll(/fetch\([^)]*method:\s*'(\w+)'/g)].map((m) => m[1]);
+  assert.deepEqual(written, [], `客户端不该有写请求，发现: ${written.join(", ")}`);
 });

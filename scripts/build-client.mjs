@@ -91,8 +91,12 @@ const problems = []
 if (!/require\(\s*["']react["']\s*\)/.test(bundle)) {
   problems.push('产物里没有 require("react") —— external 可能没生效，react 被打进来了')
 }
-if (HAVE_TIP_JAR && !bundle.includes('sps-toolcard')) {
-  problems.push('找到了 dsh-tip-jar/embed 却没被打进产物 —— alias 可能没生效（打赏组件会静默消失）')
+// 打赏罐嵌入组件当前**没有挂载**（用户定：界面只留一个状态圆点，不做 Tab、不做按钮）。
+// 但构建支持保留着：一旦哪天重新挂上，下面这条自检会自动开始生效。
+const MOUNTS_EMBED = /from\s+'dsh-tip-jar\/embed'/.test(readFileSync(join(ROOT, 'src/client.js'), 'utf8'))
+
+if (HAVE_TIP_JAR && MOUNTS_EMBED && !bundle.includes('sps-toolcard')) {
+  problems.push('源码 import 了 dsh-tip-jar/embed 却没被打进产物 —— alias 未生效（打赏组件会静默消失）')
 }
 if (bundle.length > 200 * 1024) {
   problems.push(`产物过大（${(bundle.length / 1024).toFixed(0)} KB > 200 KB）—— 很可能把依赖打进来了`)

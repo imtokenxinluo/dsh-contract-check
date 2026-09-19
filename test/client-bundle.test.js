@@ -44,8 +44,9 @@ test("客户端产物: 语法可解析（node --check）", () => {
   });
 });
 
-test("客户端产物: 只暴露 slots 注入（不注册模型工具，保持 token 中立）", () => {
+test("客户端产物: 只注册状态圆点，不注册 Tab、不注册模型工具（token 中立）", () => {
   const src = readFileSync(BUNDLE, "utf8");
-  assert.match(src, /conversation\.view/, "应注册会话 Tab");
+  assert.match(src, /conversation\.session\.header\.utilities/, "应注册头部状态圆点");
+  assert.ok(!/conversation\.view/.test(src), "不该注册「体检」页签（用户定：不要额外页签负担）");
   assert.ok(!/systemPrompt|tools\.register|defineTool/.test(src), "客户端不该碰提示词或工具注册");
 });
