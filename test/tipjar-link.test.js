@@ -141,28 +141,36 @@ test("打赏罐: 构建脚本始终支持挂载（alias + 未安装时打桩）�
   assert.match(build, /TipJarEmbed.*return null/, "没装时要能打桩，不能让构建失败");
 });
 
-// ── 3. 界面最小化约束（用户定：不要 Tab、不要按钮） ────────────────────────
+// ── 3. 界面约束（用户定：不要 Tab；要按钮，但点击反馈要做足） ──────────────
 
-test("界面: 不注册 Tab（体检不该要求用户主动去看）", () => {
+test("界面: 不注册 Tab（体检不该要求用户主动去翻页签）", () => {
   const client = read("src/client.js");
   assert.doesNotMatch(client, /slots\.inject\(\s*'conversation\.view'/, "不该再有「体检」页签");
 });
 
-test("界面: 不注册任何按钮（体检不该要求用户主动去点）", () => {
+test("界面: 保留「体检」按钮，点击能触发一次体检", () => {
   const client = read("src/client.js");
-  assert.doesNotMatch(client, /createElement\(\s*'button'/, "界面上不该有按钮");
-  assert.doesNotMatch(client, /runAudit|AUDIT_URL/, "不该有手动触发体检的入口");
+  assert.match(client, /createElement\(\s*'button'/, "头部要有体检按钮");
+  assert.match(client, /onClick:\s*runAudit/, "点击要真的触发体检");
+  assert.match(client, /AUDIT_URL/, "要打到体检路由");
 });
 
-test("界面: 唯一界面元素是状态圆点，且带颜色 + 悬停说明", () => {
+test("界面: 点击反馈四态齐全（悬停/按下/进行中/键盘聚焦）", () => {
   const client = read("src/client.js");
-  assert.match(client, /function StatusDot/, "应该有状态圆点组件");
-  assert.match(client, /COLORS\[level\]/, "圆点要按健康度着色");
-  assert.match(client, /title:\s*\(state && state\.detail\)/, "悬停要显示完整状态条");
+  assert.match(client, /\.cc-hbtn:hover/, "要有悬停态");
+  assert.match(client, /\.cc-hbtn:active/, "要有按下态");
+  assert.match(client, /\.cc-hbtn\[disabled\]/, "进行中要禁用（防连点）");
+  assert.match(client, /\.cc-hbtn:focus-visible/, "键盘聚焦要有可见轮廓");
+  assert.match(client, /transition:/, "状态切换要平滑，不能硬跳");
 });
 
-test("界面: 客户端只读状态，不发任何写请求", () => {
+test("界面: 体检进行中要有明确的文字反馈，不能'点了没反应'", () => {
   const client = read("src/client.js");
-  const written = [...client.matchAll(/fetch\([^)]*method:\s*'(\w+)'/g)].map((m) => m[1]);
-  assert.deepEqual(written, [], `客户端不该有写请求，发现: ${written.join(", ")}`);
+  assert.match(client, /busy \? '体检中…'/, "进行中要显示「体检中…」");
+});
+
+test("界面: 唯一会写状态的动作就是这个按钮（客户端不发别的写请求）", () => {
+  const client = read("src/client.js");
+  const written = [...client.matchAll(/fetch\(\s*([A-Z_]+)[^)]*method:\s*'(\w+)'/g)].map((m) => `${m[1]}:${m[2]}`);
+  assert.deepEqual(written, ["AUDIT_URL:POST"], `客户端只该有这一个写请求，实际: ${written.join(", ") || "无"}`);
 });
