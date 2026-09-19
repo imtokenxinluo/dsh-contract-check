@@ -1,0 +1,9 @@
+# dsh-contract-check bundle patch: 把契约体检插件挂载成 profile 里的一行。
+# 启用方式：把 "dsh-contract-check" 加进 profile 的 dsh.profile.bundles
+# （包自身的 dsh.bundle.patch 声明会让本文件自动生效）。
+#
+# 该行 import 的是包默认导出（见 src/index.js）= cordis 插件 { name, apply }：
+# 加载时体检已注册工具的 render 契约，并在运行期盯住会话事件类型。
+- insert:
+    - id: dsh-contract-check
+      name: 'dsh-contract-check'

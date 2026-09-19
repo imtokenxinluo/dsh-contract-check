@@ -1,0 +1,5 @@
+node_modules/
+*.log
+.tmp/
+lib/.client.tmp.js
+lib/.embed-stub.mjs
