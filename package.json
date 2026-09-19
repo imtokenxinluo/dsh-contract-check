@@ -12,6 +12,10 @@
   "bugs": {
     "url": "https://github.com/imtokenxinluo/dsh-contract-check/issues"
   },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
   "type": "module",
   "main": "src/index.js",
   "dsh": {
