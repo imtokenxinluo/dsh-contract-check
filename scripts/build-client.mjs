@@ -11,6 +11,7 @@
 // 用法：node scripts/build-client.mjs
 
 import { readFileSync, writeFileSync, rmSync, mkdirSync, existsSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -107,7 +108,16 @@ if (problems.length) {
   process.exit(1)
 }
 
+// 产物里盖一个**源码指纹**：改了 src/client.js 却忘了重新构建时，
+// 测试能立刻发现（用户拿到的是旧界面）。
+// 为什么用指纹而不是"重新构建再比对"：构建要 esbuild，
+// 而 CI / 别人的机器上不一定有（我们刻意不联网装依赖）。
+const sourceHash = createHash('sha256')
+  .update(readFileSync(join(ROOT, 'src/client.js'), 'utf8'))
+  .digest('hex')
+
 const wrapped =
+  '// built-from-src-sha256: ' + sourceHash + '\n' +
   'window.__ModuleLoader__.load({\n' +
   '\tid: "dsh-contract-check",\n' +
   '\tfactory: (require) => {\n' +
@@ -120,3 +130,4 @@ writeFileSync(join(ROOT, 'lib/client.js'), wrapped, 'utf8')
 
 const kb = (wrapped.length / 1024).toFixed(1)
 console.log(`✓ 已生成 lib/client.js（${kb} KB，react external，ModuleLoader 格式）`)
+console.log(`  源码指纹: ${sourceHash.slice(0, 16)}…`)

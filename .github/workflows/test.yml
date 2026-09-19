@@ -1,0 +1,31 @@
+name: test
+
+# 什么时候跑：往 main 推、以及有人提 PR 时。
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# 最小权限：这个 workflow 只需要读代码。
+# 没给 contents: write —— 即使有人提恶意 PR，也拿不到写权限改仓库。
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # 刻意**不跑 npm install**：本插件零运行时依赖，测试只用 node 内置的
+      # node:test。CI 里最大的一类风险就是"安装依赖时执行了陌生脚本"，
+      # 不装任何东西就根本没有这个面。这也顺带证明：这个包是真的零依赖。
+      - name: 确认真的零依赖
+        run: node -e "const p=require('./package.json');const d=Object.keys(p.dependencies||{});if(d.length){console.error('竟然有依赖: '+d.join(', '));process.exit(1)};console.log('零依赖 ✓')"
+
+      - name: 跑测试
+        run: node --test

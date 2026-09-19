@@ -9,6 +9,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const BUNDLE = fileURLToPath(new URL("../lib/client.js", import.meta.url));
@@ -19,9 +20,25 @@ test("客户端产物: lib/client.js 存在（否则包不完整）", () => {
 
 test("客户端产物: 是 ModuleLoader 包装格式且 id 正确", () => {
   const src = readFileSync(BUNDLE, "utf8");
-  assert.match(src, /^window\.__ModuleLoader__\.load\(\{/, "必须以 ModuleLoader.load 开始");
+  assert.match(src, /window\.__ModuleLoader__\.load\(\{/, "必须有 ModuleLoader.load");
   assert.match(src, /id:\s*["']dsh-contract-check["']/, "id 必须是包名（宿主按它挂载）");
   assert.match(src, /factory:\s*\(require\)\s*=>\s*\{/, "必须有 factory(require) 形式");
+});
+
+test("客户端产物: 与 src/client.js 同步（改了源码忘了重打包 = 用户拿到旧界面）", () => {
+  // 用**源码指纹**而不是"重新构建再比对"：构建要 esbuild，
+  // CI 或别人的机器上不一定有（本包刻意不联网装依赖）。
+  const srcHash = createHash("sha256")
+    .update(readFileSync(fileURLToPath(new URL("../src/client.js", import.meta.url)), "utf8"))
+    .digest("hex");
+  const bundle = readFileSync(BUNDLE, "utf8");
+  const stamped = bundle.match(/built-from-src-sha256:\s*([0-9a-f]{64})/);
+  assert.ok(stamped, "产物里应该有源码指纹 —— 请运行 npm run build 重新生成");
+  assert.equal(
+    stamped[1],
+    srcHash,
+    "src/client.js 改过了但产物没重建 —— 跑 `npm run build`"
+  );
 });
 
 test("客户端产物: react 保持 external（不能被静态打包进来）", () => {
