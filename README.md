@@ -148,7 +148,37 @@ DSH 的写路径宽松、读路径严格，而失败模式是**整条会话**而
 - **`Session.append(type, data, ...opts)` 的 opts 只接受 `sourceEventSeqs` / `surfaceOp`
   —— 插件没有设置 `ignorable` 的入口**；而且整个内核里**不存在**任何 `ignorable: true` 的赋值
 
-**结论：插件写一个自定义事件名 = 使用者的会话打不开，且作者无法自救。**
+**结论：插件写一个自定义事件名，默认就会让使用者的会话打不开。**
+
+### ⚠️ 但"作者无法自救"这句话是错的（2026-09-20 修正）
+
+本文档早前写过"且作者无法自救"。**这句话不成立**，证据来自生态里的真实代码
+（`@flowingspring/dsh-voco`）：
+
+```js
+function registerVoiceSessionEventTypes(eventTypes) {
+  const writable = eventTypes
+  for (const type of VOICE_SESSION_EVENT_TYPES) writable.add(type)
+}
+registerVoiceSessionEventTypes(KNOWN_SESSION_EVENT_TYPES)         // 自己 import 的那份
+// 还要额外改「宿主」那一份，否则改的是另一个模块实例、不起作用：
+const hostSession = createRequire(resolve(process.argv[1]))('@deepseek-ai/dsh-session')
+hostSession.KNOWN_SESSION_EVENT_TYPES && registerVoiceSessionEventTypes(hostSession.KNOWN_SESSION_EVENT_TYPES)
+```
+
+**`KNOWN_SESSION_EVENT_TYPES` 是一个导出的可变 `Set`。** 插件在运行时往里 `.add()`，
+而加载器 `KNOWN_SESSION_EVENT_TYPES.has(event.type)` 用的是同一个对象引用 —— **注册真的生效。**
+
+所以准确的表述是：
+
+| | |
+|---|---|
+| `ignorable` | 插件**确实**设不了（opts 只认那两个字段） |
+| 词汇表 | 插件**可以**用改 Set 的方式把自己的类型注册进去 —— 脆弱（依赖拿到宿主那份模块实例）、但可行 |
+| 因此 | **写自定义事件类型不是绝对禁忌**，前提是**必须同时完成注册**；只 append 不注册，才会让使用者的会话打不开 |
+
+本工具运行时只能看到"这个类型不在内核初始词汇表内"，**看不出该插件有没有注册过它** ——
+所以这类告警的措辞是"**看起来**不在词汇表内，请确认你是否已注册"，而不是断言违规。
 
 ---
 

@@ -1,9 +1,14 @@
 // 内核会话事件类型词汇表（生成文件，勿手改）。
 //
-// 为什么这份表很重要：加载器只认识表内类型，遇到表外类型会**拒绝解释整条日志**
-// （"unknown to this harness and not marked ignorable"）；而 Session.append 的 opts
-// 只接受 sourceEventSeqs / surfaceOp，**插件无法设置 ignorable**。因此在当前内核上，
-// 插件写一个自定义事件名 = 使用者的会话打不开。
+// 为什么这份表重要：加载器只认识表内类型（或带 ignorable 标记的），遇到表外类型会
+// **拒绝解释整条日志**（"unknown to this harness and not marked ignorable"）；
+// 而 Session.append 的 opts 只接受 sourceEventSeqs / surfaceOp，**插件设不了 ignorable**。
+//
+// ⚠️ 但要区分"没注册"和"注册过"（2026-09-20 修正）：
+// KNOWN_SESSION_EVENT_TYPES 是**导出的可变 Set**，插件可以在运行时 .add() 把自己的类型
+// 注册进去（真实例：@flowingspring/dsh-voco 同时改自己那份与宿主那份）。
+// 所以"表外"≠ 一定打不开会话 —— 只有一个前提：**该类型确实从未被注册**。
+// 本模块只能回答"是否在内核**初始**词汇表内"，回答不了"有没有被注册过"。
 //
 // 生成自：@deepseek-ai/dsh-session@0.1.0-rc.6 的 KNOWN_SESSION_EVENT_TYPES
 // 重新生成：node scripts/gen-event-vocab.mjs [路径]
@@ -59,7 +64,8 @@ export const KNOWN_EVENT_TYPES = new Set([
 ]);
 
 /**
- * 校验一个会话事件类型是否在内核词汇表内。
+ * 校验一个会话事件类型是否在内核**初始**词汇表内。
+ * 注意：返回 unknown 只代表"不在初始表内"，**不代表该类型没被插件注册过**。
  * @param {unknown} type
  * @returns {{status: "known"|"unknown", type: unknown, reason: string}}
  */
@@ -74,6 +80,8 @@ export function checkEventType(type) {
     status: 'unknown',
     type,
     reason:
-      '不在内核词汇表内：加载器会拒绝解释整条日志，而 append 无法设置 ignorable —— 应改用「不写自定义事件」或词汇表内的类型'
+      '不在内核初始词汇表内：**若该类型从未被注册**，加载器会拒绝解释整条日志（append 设不了 ignorable）。' +
+      '请确认：(a) 你是否在加载时把该类型 .add() 进了 KNOWN_SESSION_EVENT_TYPES（含宿主那份模块实例？）；' +
+      '(b) 否则应改用词汇表内的类型，或不要写这个事件'
   };
 }

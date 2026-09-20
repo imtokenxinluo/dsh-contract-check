@@ -51,8 +51,39 @@ The second one has a **hard fact that is easy to miss** (verified against kernel
   — plugins have no way to set `ignorable`**; and no `ignorable: true` assignment
   exists anywhere in the kernel
 
-**So: a plugin writing one custom event name makes the user's session unopenable,
-and its author cannot fix it from their own side.**
+**So: a plugin writing one custom event name will, by default, make the user's session unopenable.**
+
+### ⚠️ But "its author cannot fix it" is wrong (corrected 2026-09-20)
+
+An earlier version of this file claimed the author has no way out. **That is not true**,
+and the counter-evidence is real ecosystem code (`@flowingspring/dsh-voco`):
+
+```js
+function registerVoiceSessionEventTypes(eventTypes) {
+  const writable = eventTypes
+  for (const type of VOICE_SESSION_EVENT_TYPES) writable.add(type)
+}
+registerVoiceSessionEventTypes(KNOWN_SESSION_EVENT_TYPES)      // the copy it imported itself
+// and additionally the HOST's copy, otherwise the mutation hits a different module instance:
+const hostSession = createRequire(resolve(process.argv[1]))('@deepseek-ai/dsh-session')
+hostSession.KNOWN_SESSION_EVENT_TYPES && registerVoiceSessionEventTypes(hostSession.KNOWN_SESSION_EVENT_TYPES)
+```
+
+**`KNOWN_SESSION_EVENT_TYPES` is an exported, mutable `Set`.** A plugin can `.add()` to it at
+runtime, and the loader's `KNOWN_SESSION_EVENT_TYPES.has(event.type)` sees the same object
+reference — **so the registration actually takes effect.**
+
+Accurate statement:
+
+| | |
+|---|---|
+| `ignorable` | plugins genuinely cannot set it (opts accepts only two fields) |
+| the vocabulary | plugins **can** register their types by mutating that Set — fragile (depends on obtaining the host's module instance), but workable |
+| therefore | **writing a custom event type is not an absolute taboo** — provided the plugin also registers it. Appending *without* registering is what breaks the user's session |
+
+At runtime this tool can only see "this type is not in the kernel's initial vocabulary"; it
+**cannot tell whether the plugin registered it**. So the warning is worded as
+"**appears to be** outside the vocabulary — confirm you registered it", not as a violation.
 
 ---
 

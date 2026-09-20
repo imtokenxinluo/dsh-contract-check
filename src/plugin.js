@@ -273,8 +273,8 @@ export default {
             if (!seen.has(key)) {
               seen.add(key);
               ctx.logger?.warn?.(
-                `${TAG} 会话 ${session?.id ?? "?"} 写入表外事件类型 "${String(event?.type)}" (seq ${event?.seq ?? "?"})：` +
-                  `加载器可能拒绝解释整条日志 —— ${verdict.reason}`
+                `${TAG} 会话 ${session?.id ?? "?"} 出现内核**初始**词汇表之外的事件类型 "${String(event?.type)}" (seq ${event?.seq ?? "?"})：` +
+                  `若该类型从未被注册，加载器会拒绝解释整条日志 —— ${verdict.reason}`
               );
               try { onFinding?.({ tool: "(session-event)", status: "violation", reason: verdict.reason, evidence: String(event?.type) }); } catch { /* contained */ }
             }
