@@ -1,6 +1,6 @@
 {
   "name": "dsh-contract-check",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Contract check for DeepSeek Harness plugins: statically verifies that registered tools' output.render() returns ContentBlock[], and warns when a session event type falls outside the kernel vocabulary. Warn-only. 契约体检插件（不检测恶意）。",
   "license": "MIT",
   "author": "imtokenxinluo",
