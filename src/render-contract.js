@@ -84,14 +84,66 @@ function classifyExpression(expr) {
   return { kind: marks[marks.length - 1].kind };
 }
 
+/**
+ * 从 `return` 之后扫描表达式结束位置。
+ *
+ * 为什么不能简单用 `/\breturn\b([\s\S]*?)(?:;|$)/`（2026-09-20 的真实误报）：
+ * 现代代码常省分号（ASI），正则找不到 `;` 就一路吞到函数体结尾，
+ * 把后面语句里的 `.join()` / `String()` 也算进这个 return 的表达式里，
+ * 于是"所有 return 都是数组"的合规函数被判成"返回字符串"。
+ * 实证：`@tianbuyu-wwx/dsh-formatforge/tools/formats.mjs` 的 render
+ * （两条 return 都是数组，却被报 violation）。
+ *
+ * 规则：
+ *   · 括号/引号内一律不算结束（模板字符串、嵌套对象、跨行调用都安全）
+ *   · 深度 0 处遇到 `;` → 结束
+ *   · 深度 0 处遇到换行 → 看下一行是否像"本表达式的延续"，是就继续
+ *     （`.join(`、`&&`、`?`、运算符开头都算延续）
+ *   · 深度 0 处遇到闭合括号（`}`/`)`/`]`）→ 结束（那是外层块的边界）
+ */
+function scanReturnEnd(src, from) {
+  let depth = 0
+  let quote = null
+  for (let i = from; i < src.length; i++) {
+    const ch = src[i]
+    if (quote) {
+      if (ch === "\\") { i++; continue }
+      if (ch === quote) quote = null
+      continue
+    }
+    if (ch === '"' || ch === "'" || ch === "`") { quote = ch; continue }
+    if (ch === "(" || ch === "[" || ch === "{") { depth++; continue }
+    if (ch === ")" || ch === "]" || ch === "}") {
+      if (depth === 0) return i
+      depth--
+      continue
+    }
+    if (depth !== 0) continue
+    if (ch === ";") return i
+    if (ch === "\n") {
+      // 上一行以运算符/逗号/开括号结尾 → 表达式必然跨行
+      const before = src.slice(from, i).replace(/\s+$/, "")
+      if (/[+\-*/%&|=<>,(.[?:!]$/.test(before)) continue
+      const after = src.slice(i + 1).replace(/^\s+/, "")
+      if (after === "") return src.length
+      // 下一行以这些开头 → 是延续（方法链、三元、运算符、闭括号）
+      if (/^[.?!:,)\]}+\-*/%&|=<>]/.test(after)) continue
+      if (/^(&&|\|\||\?\?)/.test(after)) continue
+      return i
+    }
+  }
+  return src.length
+}
+
 /** 收集函数体内部的 return 表达式（先剔除嵌套函数体，避免误报）。 */
 function collectReturns(inner) {
   const body = stripNestedFunctionBodies(inner);
   const out = [];
-  const re = /\breturn\b([\s\S]*?)(?:;|$)/g;
+  const re = /\breturn\b/g;
   let m;
   while ((m = re.exec(body)) !== null) {
-    out.push(m[1]);
+    const start = m.index + m[0].length;
+    out.push(body.slice(start, scanReturnEnd(body, start)));
     if (m.index === re.lastIndex) re.lastIndex++;
   }
   return out;

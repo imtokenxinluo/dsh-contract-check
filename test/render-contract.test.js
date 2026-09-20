@@ -99,3 +99,61 @@ test("render 契约: 调用参数里含 .join 不得误判（外层是未知调�
   const src = 'render(a, v) { return wrap(v.items.join(",")); }';
   assert.equal(classifyRenderSource(src).status, "unknown");
 });
+
+// --- ASI（省略分号）：2026-09-20 的真实误报，全量扫描 622 个包时抓到 ---
+
+test("render 契约: 无分号的 return 之后还有 .join 语句，不得误判为字符串（真实误报）", () => {
+  // 真实来源：@tianbuyu-wwx/dsh-formatforge tools/formats.mjs
+  // 两条 return 都是数组，但第一条没写分号，旧实现一路吞到函数体结尾，
+  // 把后面 lines.join("\n") 也算进来 → 误判 violation。
+  const src = `render(_args, value) {
+  if (value && value.ok === false && value.error) {
+    return [{ type: 'text', text: \`失败: \${value.error.message}\` }]
+  }
+  const lines = ['a', 'b']
+  return [{ type: 'text', text: lines.join('\\n') }]
+}`;
+  const r = classifyRenderSource(src);
+  assert.equal(r.status, "ok", `reason=${r.reason} evidence=${r.evidence}`);
+});
+
+test("render 契约: 无分号的 return 之后接续链式调用，仍按该表达式判定", () => {
+  const src = `render(a, v) {
+  return [{ type: 'text', text: 'x' }]
+    .filter(Boolean)
+}`;
+  assert.equal(classifyRenderSource(src).status, "ok");
+});
+
+test("render 契约: 无分号的字符串 return 仍要判 violation（别把真违规也放过）", () => {
+  const src = `render(a, v) {
+  return "bare string"
+  const lines = ['a']
+  lines.join('')
+}`;
+  assert.equal(classifyRenderSource(src).status, "violation");
+});
+
+test("render 契约: 三目表达式返回数组 → 目前判 unknown（已知检出缺口，但绝不误报）", () => {
+  // 说明：分类器只把「表达式以 [ 开头」或「深度 0 处有 .map( 等」当作数组标记，
+  // 三目里的 `? [...]` 没被识别 → 判 unknown。
+  // 这是**保守的漏判**（检出率低），不是误报；符合「宁 unknown，不 violation」。
+  // 真要提高检出率可识别「? [」/「: [」形态，但那是独立改进，见 README 局限一节。
+  const src = `render(a, v) {
+  return v.blocked
+    ? [{ type: 'text', text: 'blocked' }]
+    : [{ type: 'text', text: 'ok' }]
+}`;
+  const r = classifyRenderSource(src);
+  assert.equal(r.status, "unknown");
+  assert.notEqual(r.status, "violation", "宁可判不准，也不能误报");
+});
+
+test("render 契约: 三目里若出现字符串产物，仍要判 violation（不能因为看不懂就放过）", () => {
+  const src = `render(a, v) {
+  return v.blocked
+    ? [{ type: 'text', text: 'b' }]
+    : [{ type: 'text', text: 'o' }].join('\\n')
+}`;
+  assert.equal(classifyRenderSource(src).status, "violation");
+});
