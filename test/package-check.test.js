@@ -5,8 +5,9 @@
 // **DSH 整个插件树拒绝启动**。
 //
 // npm 语义（本仓库用一次性实验实测，非猜测）：
-//   * 总是包含：package.json / README* / LICENSE* / CHANGELOG* / `main` 指向的文件 / `bin` 指向的文件
+//   * 总是包含：package.json / README* / LICENSE* / `main` 指向的文件 / `bin` 指向的文件
 //   * **不**总是包含：`exports` 目标 / `types` / 任何自定义字段（含 dsh.bundle.patch）
+//     **以及 CHANGELOG*/HISTORY*** —— 2026-09-20 复测修正，早前这里多写了 CHANGELOG
 //   → 检查必须据此判定，否则会对 main/bin 误报。
 import { test } from "node:test";
 import assert from "node:assert/strict";

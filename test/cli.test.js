@@ -67,8 +67,10 @@ test("cli: scan 一个目录，递归扫描并汇总", () => {
 test("cli: vocab 打印词汇表版本与条目数", () => {
   const r = run(["vocab"]);
   assert.equal(r.code, 0, r.out);
-  assert.match(r.out, /0\.1\.0-rc\.6/);
-  assert.match(r.out, /44/);
+  // 不断言具体版本与条数：词表是随内核升级重新生成的快照，写死会让每次内核升级都误红。
+  // 该报警的是漂移本身（见 event-vocab.test.js 的 drift 测试）。
+  assert.match(r.out, /\d+\.\d+\.\d+/, "应打印内核版本号");
+  assert.match(r.out, /\d+\s*条/, "应打印条目数");
 });
 
 test("cli: 不存在的路径 → 报错且退出码非零，不崩溃", () => {

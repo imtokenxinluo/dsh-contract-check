@@ -3,13 +3,18 @@
 // 为什么值得单独做：这类遗漏的后果不是"某个功能不工作"，而是
 // **DSH 整个插件树拒绝启动**（bundle 挂载时 ENOENT）。真实事故：本项目的 0.2.0。
 //
-// npm 的 `files` 语义（用一次性实验实测，不是猜）：
-//   * **总是包含**：package.json、README*、LICENSE*/LICENCE*、CHANGELOG*、
-//     `main` 指向的文件、`bin` 指向的文件
-//   * **不**总是包含：`exports` 的目标、`types`、**任何自定义字段**
-//     —— DSH 的 `dsh.bundle.patch` 属于自定义字段，不在 `files` 里就会丢失
+// npm 的 `files` 语义（一次性实验实测，不是猜；2026-09-20 复测修正）：
+//   * **总是包含**：package.json、README*、LICENSE*/LICENCE*、`main` 指向的文件、
+//     `bin` 指向的文件
+//   * **不**总是包含：`exports` 的目标、`types`、**任何自定义字段**、
+//     **以及 CHANGELOG、HISTORY** —— DSH 的 `dsh.bundle.patch` 属于自定义字段
 //   * `files` 里的条目优先于 `.npmignore`；`!` 开头的条目是排除项
 //   * 没有 `files` 字段时：默认打包全部（无遗漏风险）
+//
+// ⚠️ CHANGELOG 那一行是**修正**来的：早前这里写着"CHANGELOG* 总是包含"，是错的。
+// 复测实验（`files: ["lib"]`、根目录放 README/LICENSE/CHANGELOG/HISTORY）：
+//   ✓ LICENSE  ✓ README.md  ✗ CHANGELOG.md  ✗ HISTORY.md
+// 后果：信了这条的人会把 CHANGELOG 漏在包外（本项目自己的 0.1.1 就这么漏了）。
 //
 // 只读：不运行 npm、不执行被检查包的脚本（npm pack 会跑 prepack/prepare，
 // 对不受信任的包是危险的 —— 所以这里自己实现白名单判定）。
@@ -21,12 +26,15 @@
 import { readFileSync, existsSync, statSync, readdirSync } from "node:fs";
 import { join, normalize } from "node:path";
 
-/** npm 一定会打进包的文件（相对包根） */
+/**
+ * npm 一定会打进包的文件（相对包根）。
+ * ⚠️ 不含 CHANGELOG 与 HISTORY —— 2026-09-20 实验证明它们**不会**被自动包含
+ * （早前这里错误地包含 changelog，会导致"漏发 CHANGELOG"这类问题不被提示）。
+ */
 const ALWAYS_INCLUDED = [
   /^package\.json$/i,
   /^readme(\.[^/]*)?$/i,
-  /^licen[cs]e(\.[^/]*)?$/i,
-  /^changelog(\.[^/]*)?$/i
+  /^licen[cs]e(\.[^/]*)?$/i
 ];
 
 /**

@@ -189,8 +189,8 @@ It follows npm's **real semantics** (established by experiment, not guesswork):
 
 | npm behavior | Files |
 |---|---|
-| **always included** | `package.json`, `README*`, `LICENSE*`, `CHANGELOG*`, `main` target, `bin` targets |
-| **not automatic** (must be in `files`) | `exports` targets, `types`, **any custom field** — including `dsh.bundle.patch` |
+| **always included** | `package.json`, `README*`, `LICENSE*`, `main` target, `bin` targets |
+| **not automatic** (must be in `files`) | `exports` targets, `types`, **any custom field**, **and `CHANGELOG*`/`HISTORY*`** |
 | no `files` field at all | everything is packed; nothing can be dropped |
 
 It **does not run npm** and **does not execute the inspected package's scripts** —

@@ -8,9 +8,28 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { KNOWN_EVENT_TYPES, VOCAB_VERSION, checkEventType } from "../src/event-vocab.js";
 
-test("词汇表：本版本共 44 类", () => {
-  assert.equal(KNOWN_EVENT_TYPES.size, 44, `实际 ${KNOWN_EVENT_TYPES.size}`);
-  assert.equal(VOCAB_VERSION, "0.1.0-rc.6");
+// 注意这里**不写死**条目数与版本：词表是随内核升级重新生成的快照，
+// 写死就等于"每次内核升级都要手改测试"，而真正该报警的是**漂移**
+// （见下方 drift 测试：与已安装内核比对，漂了就红）。
+test("词汇表：非空且版本号形如内核版本", () => {
+  assert.ok(KNOWN_EVENT_TYPES.size > 0, "词汇表不应为空");
+  assert.match(VOCAB_VERSION, /^\d+\.\d+\.\d+/, `版本号形如 x.y.z，实际 ${VOCAB_VERSION}`);
+});
+
+test("词汇表：与内核漂移检测（无内核时跳过）", async () => {
+  // 这条测试的意义：词表是**生成物**，内核升级后它会静默过期 ——
+  // 过期的代价是双向的：新增类型被误报成"表外"，已移除类型被误判成合法。
+  // 找到内核就比对，找不到（如精简 CI 环境）则跳过，绝不伪造通过。
+  const { findKernelVocab } = await import("../scripts/verify-vocab.mjs");
+  const kernel = await findKernelVocab();
+  if (!kernel) return; // 环境里没有内核 -> 跳过
+  const missing = [...kernel.types].filter((t) => !KNOWN_EVENT_TYPES.has(t));
+  const extra = [...KNOWN_EVENT_TYPES].filter((t) => !kernel.types.has(t));
+  assert.deepEqual(
+    { missing, extra, kernelVersion: kernel.version, vocabVersion: VOCAB_VERSION },
+    { missing: [], extra: [], kernelVersion: kernel.version, vocabVersion: kernel.version },
+    "内嵌词汇表与已安装内核不一致 -> 运行 npm run gen:vocab 重新生成",
+  );
 });
 
 test("词汇表：全部已知类型判 known", () => {
