@@ -9,6 +9,7 @@ import { readFileSync, existsSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { join, dirname } from "node:path"
 import { spawnSync } from "node:child_process"
+import { tmpdir } from "node:os"
 
 const root = fileURLToPath(new URL("..", import.meta.url))
 const vendored = join(root, "scripts/vendor/leak-check.mjs")
@@ -28,7 +29,7 @@ test("vendored: workflow 里有预检步骤", () => {
 })
 
 test("vendored: 预检对本仓库跑通（0 violation）", () => {
-  const r = spawnSync(process.execPath, [wrapper], { encoding: "utf8", cwd: "C:/" })
+  const r = spawnSync(process.execPath, [wrapper], { encoding: "utf8", cwd: tmpdir() })
   assert.equal(r.status, 0, r.stdout + r.stderr)
   assert.match(r.stdout, /violation 0/)
 })
