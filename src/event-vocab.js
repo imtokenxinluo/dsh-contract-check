@@ -10,11 +10,11 @@
 // 所以"表外"≠ 一定打不开会话 —— 只有一个前提：**该类型确实从未被注册**。
 // 本模块只能回答"是否在内核**初始**词汇表内"，回答不了"有没有被注册过"。
 //
-// 生成自：@deepseek-ai/dsh-session@0.2.0-rc.2 的 KNOWN_SESSION_EVENT_TYPES
+// 生成自：@deepseek-ai/dsh-session@0.2.1-rc.2 的 KNOWN_SESSION_EVENT_TYPES
 // 重新生成：node scripts/gen-event-vocab.mjs [路径]
 // 漂移检查：node scripts/verify-vocab.mjs
 
-export const VOCAB_VERSION = "0.2.0-rc.2";
+export const VOCAB_VERSION = "0.2.1-rc.2";
 
 export const KNOWN_EVENT_TYPES = new Set([
   "agent-preset/selected",
@@ -39,6 +39,8 @@ export const KNOWN_EVENT_TYPES = new Set([
   "hook/invoked",
   "hook/result",
   "image/offload",
+  "job/registered",
+  "job/settled",
   "llm/retry",
   "llm/retry-started",
   "model/selection",
@@ -75,6 +77,7 @@ export const KNOWN_EVENT_TYPES = new Set([
   "turn/start",
   "user/message",
   "web/deepseek-search-llm-request",
+  "working-directory/change",
   "workspace/changes"
 ]);
 
