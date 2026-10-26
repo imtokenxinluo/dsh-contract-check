@@ -15,6 +15,21 @@ kernel contracts** — i.e. is the bug that corrupts session history still burie
 
 ---
 
+## 30-second setup
+
+```bash
+dsh plugin --profile <your-profile> add dsh-contract-check
+```
+
+What you get:
+
+- **Settings → contract check**: the contract status of every installed plugin; violations are named
+- A **status badge** in the conversation header: is the current session chain healthy?
+- A CLI to check before installing anything:
+  `dsh-contract-check scan <plugin-source-dir>`, `dsh-contract-check package <package-dir>`
+
+It answers "is it compliant?", not "is it safe?" — see the next section.
+
 ## Zero token cost (hard constraint)
 
 **This plugin registers no model tools, injects no prompt sections, and produces no
