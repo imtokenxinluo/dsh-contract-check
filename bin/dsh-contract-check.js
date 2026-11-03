@@ -12,6 +12,8 @@ import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { scanSource } from "../src/scan-source.js";
 import { checkPackage } from "../src/package-check.js";
+import { checkPeers, locateKernel, loadSemver } from "../src/peer-check.js";
+import { readFileSync } from "node:fs";
 import { KNOWN_EVENT_TYPES, VOCAB_VERSION } from "../src/event-vocab.js";
 
 const SCAN_EXT = new Set([".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx"]);
@@ -29,6 +31,11 @@ usage:
       检查包的 npm 打包完整性：package.json 声明要用的文件（dsh.bundle.patch /
       exports / types 等）是否会被 files 白名单漏在包外，或干脆不存在。
       漏发 bundle patch 的后果是 **DSH 整个插件树拒绝启动**。
+
+  dsh-contract-check peers <dir...> [--dsh <kernel-path>] [--dsh-version <ver>]
+      检查插件的 @deepseek-ai/* peer 范围是否覆盖当前内核版本。
+      peer 不覆盖时 DSH 会**静默跳过**该插件（装了但没生效，界面上看不出来）。
+      内核版本默认从已安装的 DSH 自动探测，可用 --dsh / --dsh-version 覆盖。
 
   dsh-contract-check vocab
       打印内核会话事件类型词汇表（表外类型会让整条会话无法加载）。
@@ -74,6 +81,57 @@ async function collectFiles(target) {
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
 
+  if (cmd === "peers") {
+    const FLAGS = new Set(["--dsh", "--dsh-version"]);
+    const flag = (name) => { const i = rest.indexOf(name); return i >= 0 ? rest[i + 1] : null; };
+    const dirs = rest.filter((a, i) => !a.startsWith("--") && !(i > 0 && FLAGS.has(rest[i - 1])));
+    if (dirs.length === 0) return usage();
+
+    const hint = flag("--dsh");
+    const kernelPath = locateKernel({ hint });
+    let kernelVersion = null;
+    if (kernelPath) {
+      try { kernelVersion = JSON.parse(readFileSync(kernelPath, "utf8")).version ?? null; } catch { /* 下面兜底 */ }
+    }
+    const dshVersion = flag("--dsh-version") ?? kernelVersion;
+    const source = flag("--dsh-version") ? "--dsh-version" : (kernelPath ?? "未找到内核");
+    if (!dshVersion) {
+      console.log("ERR  找不到 DSH 内核版本：用 --dsh <path> 或 --dsh-version <ver> 指定");
+      process.exitCode = 2;
+      return;
+    }
+    const semver = loadSemver(kernelPath);
+    if (!semver) {
+      console.log("ERR  找不到 semver 实现（需要内核或本地 node_modules 里有一份 semver）");
+      process.exitCode = 2;
+      return;
+    }
+
+    let totalViolations = 0, errors = 0;
+    for (const dir of dirs) {
+      const r = checkPeers(dir, { dshVersion, semver });
+      if (r.ok === false) {
+        console.log(`ERR  ${r.error}`);
+        errors++;
+        continue;
+      }
+      const head = `内核 ${dshVersion}（${source}）`;
+      if (r.violations === 0 && r.notes.length === 0) {
+        console.log(`ok   ${dir}  ${head}；${r.checked} 个内核 peer 全部满足`);
+      } else if (r.violations === 0) {
+        console.log(`ok   ${dir}  ${head}；${r.checked} 个 peer 满足，${r.notes.length} 条提示`);
+        for (const n of r.notes) console.log(`  note  · ${n.name} ${n.range}\n          ${n.reason}`);
+      } else {
+        console.log(`VIOLATION  ${dir}  ${head}（${r.violations} 个 peer 不满足 → 插件会被跳过）`);
+        for (const v of r.findings) console.log(`  · ${v.name} ${v.range}\n      ${v.reason}`);
+        for (const n of r.notes) console.log(`  note · ${n.name} ${n.range}\n      ${n.reason}`);
+      }
+      totalViolations += r.violations;
+    }
+    console.log(`\nchecked=${dirs.length} violation=${totalViolations}${errors ? ` errors=${errors}` : ""}`);
+    if (totalViolations > 0 || errors > 0) process.exitCode = 1;
+    return;
+  }
   if (cmd === "vocab") {
     console.log(`词汇表版本: ${VOCAB_VERSION}`);
     console.log(`条目数: ${KNOWN_EVENT_TYPES.size}`);

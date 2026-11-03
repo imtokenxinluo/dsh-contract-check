@@ -11,3 +11,4 @@ export { auditCtx } from "./plugin.js";
 
 import plugin from "./plugin.js";
 export default plugin;
+export { checkPeers, locateKernel, loadSemver } from "./peer-check.js";

@@ -24,7 +24,7 @@ dsh plugin --profile <你的 profile> add dsh-contract-check
 - **设置 → 无耗检查**：每个已装插件的契约状态，违规的会被点名
 - 对话页头部的**状态徽章**：当前会话链路是否健康
 - 一条 CLI，**装插件之前先体检**：
-  `dsh-contract-check scan <插件源码目录>`、`dsh-contract-check package <包目录>`
+  `dsh-contract-check scan <插件源码目录>`、`dsh-contract-check package <包目录>`、`dsh-contract-check peers <包目录>`
 
 它只回答"合规吗"，不回答"安全吗" —— 见下一节。
 
@@ -228,6 +228,7 @@ hostSession.KNOWN_SESSION_EVENT_TYPES && registerVoiceSessionEventTypes(hostSess
 ```bash
 dsh-contract-check scan <文件或目录>     # 递归扫源码里的 render 定义
 dsh-contract-check package <包目录>      # 检查 npm 打包会不会漏发声明要用的文件
+dsh-contract-check peers <包目录>        # 检查 peer 范围是否覆盖当前内核（不覆盖 = 会被静默跳过）
 dsh-contract-check vocab                 # 打印内嵌词汇表版本与条目数
 ```
 

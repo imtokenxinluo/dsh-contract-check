@@ -1,5 +1,23 @@
 # 变更记录
 
+## Unreleased
+
+**新增：`peers` 子命令 —— 回答"这个插件为什么装了不生效"**
+
+- 对包目录里的 `@deepseek-ai/dsh-*` peer 逐条与**当前内核版本**做 semver 判断
+  （`includePrerelease`，与 DSH 自己的兼容性检查同一口径）。
+- 不覆盖 = DSH 会**静默跳过**该插件。真实案例：`dsh-doublecheck` 的 7 个 peer 全是
+  精确 `0.1.0-rc.6` —— 装了但从未加载，界面上没有任何提示。
+- 只评价 `@deepseek-ai/dsh-*`；`cordis` / `schemastery` 等**独立版本包不评价**
+  （拿内核版本去比会满屏假阳性，2026-11-03 实测踩到）。
+- 非法范围 / `workspace:` / `*` 归入 note 而非违规；`semver.satisfies` 对非法范围
+  返回 false 不抛错，所以先用 `validRange` 区分"非法"与"合法但不满足"。
+- 内核版本自动探测，可用 `--dsh <path>` / `--dsh-version <ver>` 覆盖。
+
+**测试**：188 → 199 项。
+
+---
+
 ## 0.1.2 — 2026-10-14
 
 **跟上内核 0.2.0-rc.2（重要）**
